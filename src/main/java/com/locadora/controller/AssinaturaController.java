@@ -1,6 +1,7 @@
 package com.locadora.controller;
 
 import com.locadora.entity.Assinatura;
+import com.locadora.entity.TipoAssinatura;
 import com.locadora.service.AssinaturaService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
@@ -17,8 +18,11 @@ public class AssinaturaController {
     private AssinaturaService assinaturaService;
 
     @PostMapping("/cadastrar")
-    public ResponseEntity<Assinatura> cadastrarAssinatura(@RequestParam Long clienteId, @RequestParam String tipo) {
-        Assinatura assinatura = assinaturaService.cadastrarAssinatura(clienteId, tipo);
+    public ResponseEntity<Assinatura> cadastrarAssinatura(
+            @RequestParam Long clienteId,
+            @RequestParam TipoAssinatura tipoAssinatura) {
+
+        Assinatura assinatura = assinaturaService.cadastrarAssinatura(clienteId, tipoAssinatura);
         return ResponseEntity.ok(assinatura);
     }
 }
