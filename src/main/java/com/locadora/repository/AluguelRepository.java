@@ -1,7 +1,6 @@
 package com.locadora.repository;
 
 import com.locadora.entity.Aluguel;
-import com.locadora.entity.Assinatura;
 import com.locadora.entity.Cliente;
 import com.locadora.entity.Jogo;
 import org.springframework.data.jpa.repository.JpaRepository;

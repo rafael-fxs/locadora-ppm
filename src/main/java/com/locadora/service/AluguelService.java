@@ -1,12 +1,12 @@
 package com.locadora.service;
 
+import com.locadora.entity.Aluguel;
 import com.locadora.entity.Assinatura;
 import com.locadora.entity.Cliente;
 import com.locadora.entity.Jogo;
-import com.locadora.entity.Aluguel;
+import com.locadora.repository.AluguelRepository;
 import com.locadora.repository.ClienteRepository;
 import com.locadora.repository.JogoRepository;
-import com.locadora.repository.AluguelRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
