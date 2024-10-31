@@ -135,6 +135,22 @@ public class AluguelComDesconto implements AluguelDesconto {
 }
 ```
 
+No `AluguelService`:
+
+```java
+public Aluguel alugarJogo(Long clienteId, Long jogoId) {
+    Cliente cliente = clienteRepository.findById(clienteId).orElseThrow(() -> new RuntimeException("Cliente não encontrado"));
+    Jogo jogo = jogoRepository.findById(jogoId).orElseThrow(() -> new RuntimeException("Jogo não encontrado"));
+
+    AluguelDesconto aluguelDesconto = new AluguelDescontoBase();
+    if (cliente.getAssinatura() != null) {
+        aluguelDesconto = new AluguelComDesconto(aluguelDesconto, cliente.getAssinatura().getDesconto());
+    }
+
+    double valorAluguel = aluguelDesconto.calcularValorComDesconto(jogo.getPrecoComDesconto());
+}
+```
+
 ### 3. Cálculo de Multas com o `Padrão Strategy`
 
 A lógica de cálculo de multa no `processarDevolucao` mistura diferentes condições para tipos de clientes. Isso complica o código se novos tipos de clientes com condições de multa diferentes forem adicionados.
@@ -243,85 +259,126 @@ public class ClienteServiceImpl implements ClienteService {
 
 ### 5. Separação das Camadas de Responsabilidade
 
-Algumas `Controllers` estão interagindo diretamente com repositórios. Isso resulta em uma mistura de responsabilidades, onde o controlador, além de lidar com requisições HTTP, também gerencia o acesso a dados e a lógica de negócios. Essa abordagem dificulta a manutenção e torna o código menos modular.
+O método `alugarJogo` no `AluguelService` concentra múltiplas responsabilidades, como validação de idade, cálculo de desconto, atualização de estoque e criação do aluguel, tornando-o menos modular e difícil de manter. Para melhorar, cada tarefa foi separada: a validação de idade agora usa `ValidadorIdadeService`, o cálculo de desconto é feito com o padrão `Decorator`, o controle de estoque é gerido pelo `EstoqueService`, e a criação do aluguel foi movida para um método dedicado, `criarAluguel`.
 
-**Antes (Controlador acessando diretamente o repositório):**
+**Antes (Método alugarJogo com múltiplas responsabilidades):**
 
 ```java
-@RestController
-@RequestMapping("/api/clientes")
-public class ClienteController {
-    
-    @Autowired
-    private ClienteRepository clienteRepository;
+public Aluguel alugarJogo(Long clienteId, Long jogoId) {
+    Cliente cliente = clienteRepository.findById(clienteId)
+            .orElseThrow(() -> new RuntimeException("Cliente não encontrado"));
+    Jogo jogo = jogoRepository.findById(jogoId)
+            .orElseThrow(() -> new RuntimeException("Jogo não encontrado"));
 
-    @GetMapping("/{id}")
-    public ResponseEntity<Cliente> buscarClientePorId(@PathVariable Long id) {
-        Cliente cliente = clienteRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Cliente não encontrado"));
-        return ResponseEntity.ok(cliente);
+    // Validação de idade
+    if (cliente.getIdade() < jogo.getClassificacaoEtaria()) {
+        throw new RuntimeException("Cliente não tem idade suficiente para alugar este jogo");
     }
 
-    @GetMapping
-    public ResponseEntity<List<Cliente>> listarClientes() {
-        List<Cliente> clientes = clienteRepository.findAll();
-        return ResponseEntity.ok(clientes);
+    // Cálculo do valor do aluguel com desconto
+    double valorAluguel = jogo.getPrecoComDesconto();
+    if (cliente.getAssinatura() != null) {
+        valorAluguel -= (valorAluguel * cliente.getAssinatura().getDesconto() / 100);
     }
+
+    // Atualiza o estoque e salva o aluguel
+    jogo.setEstoque(jogo.getEstoque() - 1);
+    jogoRepository.save(jogo);
+
+    Aluguel aluguel = new Aluguel();
+    aluguel.setCliente(cliente);
+    aluguel.setJogo(jogo);
+    aluguel.setDataAluguel(LocalDate.now());
+    aluguel.setValorAluguel(valorAluguel);
+    aluguelRepository.save(aluguel);
+
+    return aluguel;
 }
 ```
 
-**Depois (Separação com Serviço):**
+**Depois (Separação de Responsabilidades)**
 
-Interface ClienteService: Define as operações de negócio relacionadas a Cliente.
-
-```java
-public interface ClienteService {
-    Cliente buscarClientePorId(Long id);
-    List<Cliente> listarClientes();
-}
-```
-
-Implementação ClienteServiceImpl: Concentra a lógica de negócios e interage com o repositório.
+Serviço `ValidadorIdadeService`: Encapsula a validação da idade mínima.
 
 ```java
 @Service
-public class ClienteServiceImpl implements ClienteService {
-    @Autowired
-    private ClienteRepository clienteRepository;
-
-    @Override
-    public Cliente buscarClientePorId(Long id) {
-        return clienteRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Cliente não encontrado"));
-    }
-
-    @Override
-    public List<Cliente> listarClientes() {
-        return clienteRepository.findAll();
+public class ValidadorIdadeService {
+    public void validarIdadeParaJogo(Cliente cliente, Jogo jogo) {
+        if (cliente.getIdade() < jogo.getClassificacaoEtaria()) {
+            throw new RuntimeException("Cliente não tem idade suficiente para alugar este jogo");
+        }
     }
 }
 ```
 
-Controlador ClienteController: Agora usa o ClienteService para acessar a lógica de negócios, sem interagir diretamente com o repositório.
+Serviço `EstoqueService`: Encapsula a lógica de manipulação de estoque para facilitar a reutilização em outras partes do código.
 
 ```java
-@RestController
-@RequestMapping("/api/clientes")
-public class ClienteController {
-    
+@Service
+public class EstoqueService {
     @Autowired
-    private ClienteService clienteService;
+    private JogoRepository jogoRepository;
 
-    @GetMapping("/{id}")
-    public ResponseEntity<Cliente> buscarClientePorId(@PathVariable Long id) {
-        Cliente cliente = clienteService.buscarClientePorId(id);
-        return ResponseEntity.ok(cliente);
+    public void reduzirEstoque(Jogo jogo) {
+        if (jogo.getEstoque() <= 0) {
+            throw new RuntimeException("Estoque insuficiente para o jogo selecionado");
+        }
+        jogo.setEstoque(jogo.getEstoque() - 1);
+        jogoRepository.save(jogo);
     }
+}
+```
 
-    @GetMapping
-    public ResponseEntity<List<Cliente>> listarClientes() {
-        List<Cliente> clientes = clienteService.listarClientes();
-        return ResponseEntity.ok(clientes);
+Método `criarAluguel` no `AluguelService`: Cria e salva a entidade Aluguel, facilitando a reutilização do processo de criação e salvamento do aluguel.
+
+```java
+private Aluguel criarAluguel(Cliente cliente, Jogo jogo, double valorAluguel) {
+    Aluguel aluguel = new Aluguel();
+    aluguel.setCliente(cliente);
+    aluguel.setJogo(jogo);
+    aluguel.setDataAluguel(LocalDate.now());
+    aluguel.setValorAluguel(valorAluguel);
+    return aluguelRepository.save(aluguel);
+}
+```
+
+Ajuste no `AluguelService`: Agora, `alugarJogo` delega as responsabilidades de validação e atualização de estoque para outros serviços, e o cálculo do valor do aluguel permanece utilizando o padrão `Decorator` conforme implementado.
+
+```java
+@Service
+public class AluguelService {
+    @Autowired
+    private ClienteRepository clienteRepository;
+    @Autowired
+    private JogoRepository jogoRepository;
+    @Autowired
+    private AluguelRepository aluguelRepository;
+    @Autowired
+    private ValidadorIdadeService validadorIdadeService;
+    @Autowired
+    private EstoqueService estoqueService;
+
+    public Aluguel alugarJogo(Long clienteId, Long jogoId) {
+        Cliente cliente = clienteRepository.findById(clienteId)
+                .orElseThrow(() -> new RuntimeException("Cliente não encontrado"));
+        Jogo jogo = jogoRepository.findById(jogoId)
+                .orElseThrow(() -> new RuntimeException("Jogo não encontrado"));
+
+        // Validação da idade usando ValidadorIdadeService
+        validadorIdadeService.validarIdadeParaJogo(cliente, jogo);
+
+        // Cálculo do valor do aluguel com desconto usando Decorator
+        AluguelDesconto aluguelDesconto = new AluguelDescontoBase();
+        if (cliente.getAssinatura() != null) {
+            aluguelDesconto = new AluguelComDesconto(aluguelDesconto, cliente.getAssinatura().getDesconto());
+        }
+        double valorAluguel = aluguelDesconto.calcularValorComDesconto(jogo.getPrecoComDesconto());
+
+        // Reduz o estoque usando EstoqueService
+        estoqueService.reduzirEstoque(jogo);
+
+        // Criação e salvamento do aluguel usando criarAluguel
+        return criarAluguel(cliente, jogo, valorAluguel);
     }
 }
 ```
