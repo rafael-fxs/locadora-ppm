@@ -1,5 +1,9 @@
 # Locadora de Jogos - Sistema de Gerenciamento
 
+- Aluno: Rafael Felipe Xavier da Silva
+- Curso: Sistemas de Informação
+- Matéria: Padrões de Projeto e Multicamadas (Turma 6º U)
+
 Este projeto é um sistema de gerenciamento para uma locadora de jogos, construído em Java com o framework Spring Boot. A aplicação permite gerenciar o aluguel de jogos, cadastro de clientes, controle de assinaturas e aplicação de regras de negócio, como descontos e cálculo de multas.
 
 ## Funcionalidades Principais
