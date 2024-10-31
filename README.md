@@ -137,6 +137,8 @@ public class AluguelComDesconto implements AluguelDesconto {
 
 ### 3. Cálculo de Multas com o `Padrão Strategy`
 
+A lógica de cálculo de multa no `processarDevolucao` mistura diferentes condições para tipos de clientes. Isso complica o código se novos tipos de clientes com condições de multa diferentes forem adicionados.
+
 **Antes (Código Atual)**
 
 ```java
@@ -203,25 +205,124 @@ public double processarDevolucao(Long clienteId, Long jogoId, LocalDate dataDevo
 
 ### 4. Uso de Interfaces para Repositórios e Serviços
 
+Atualmente, os serviços e repositórios são implementados diretamente como classes concretas. Isso dificulta o teste isolado de funcionalidades e a troca de implementações, se necessário.
+Usar interfaces para definir os métodos dos serviços e repositórios torna o código mais modular, flexível e fácil de testar. Com `interfaces`, é possível substituir implementações sem modificar o código principal, o que facilita a manutenção e expansão futura do sistema.
+
 **Antes (Código Atual)**
 
 ```java
+@Service
+public class ClienteService {
+    @Autowired
+    private ClienteRepository clienteRepository;
+
+    public Cliente buscarClientePorId(Long id) {
+        return clienteRepository.findById(id).orElseThrow(() -> new RuntimeException("Cliente não encontrado"));
+    }
+}
 ```
 
-**Depois**
+**Depois (Com Interface para Serviço)**
 
 ```java
+public interface ClienteService {
+    Cliente buscarClientePorId(Long id);
+}
+
+@Service
+public class ClienteServiceImpl implements ClienteService {
+    @Autowired
+    private ClienteRepository clienteRepository;
+
+    @Override
+    public Cliente buscarClientePorId(Long id) {
+        return clienteRepository.findById(id).orElseThrow(() -> new RuntimeException("Cliente não encontrado"));
+    }
+}
 ```
 
 ### 5. Separação das Camadas de Responsabilidade
 
-**Antes (Código Atual)**
+Algumas `Controllers` estão interagindo diretamente com repositórios. Isso resulta em uma mistura de responsabilidades, onde o controlador, além de lidar com requisições HTTP, também gerencia o acesso a dados e a lógica de negócios. Essa abordagem dificulta a manutenção e torna o código menos modular.
+
+**Antes (Controlador acessando diretamente o repositório):**
 
 ```java
+@RestController
+@RequestMapping("/api/clientes")
+public class ClienteController {
+    
+    @Autowired
+    private ClienteRepository clienteRepository;
+
+    @GetMapping("/{id}")
+    public ResponseEntity<Cliente> buscarClientePorId(@PathVariable Long id) {
+        Cliente cliente = clienteRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Cliente não encontrado"));
+        return ResponseEntity.ok(cliente);
+    }
+
+    @GetMapping
+    public ResponseEntity<List<Cliente>> listarClientes() {
+        List<Cliente> clientes = clienteRepository.findAll();
+        return ResponseEntity.ok(clientes);
+    }
+}
 ```
 
-**Depois**
+**Depois (Separação com Serviço):**
+
+Interface ClienteService: Define as operações de negócio relacionadas a Cliente.
 
 ```java
+public interface ClienteService {
+    Cliente buscarClientePorId(Long id);
+    List<Cliente> listarClientes();
+}
+```
+
+Implementação ClienteServiceImpl: Concentra a lógica de negócios e interage com o repositório.
+
+```java
+@Service
+public class ClienteServiceImpl implements ClienteService {
+    @Autowired
+    private ClienteRepository clienteRepository;
+
+    @Override
+    public Cliente buscarClientePorId(Long id) {
+        return clienteRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Cliente não encontrado"));
+    }
+
+    @Override
+    public List<Cliente> listarClientes() {
+        return clienteRepository.findAll();
+    }
+}
+```
+
+Controlador ClienteController: Agora usa o ClienteService para acessar a lógica de negócios, sem interagir diretamente com o repositório.
+
+```java
+@RestController
+@RequestMapping("/api/clientes")
+public class ClienteController {
+    
+    @Autowired
+    private ClienteService clienteService;
+
+    @GetMapping("/{id}")
+    public ResponseEntity<Cliente> buscarClientePorId(@PathVariable Long id) {
+        Cliente cliente = clienteService.buscarClientePorId(id);
+        return ResponseEntity.ok(cliente);
+    }
+
+    @GetMapping
+    public ResponseEntity<List<Cliente>> listarClientes() {
+        List<Cliente> clientes = clienteService.listarClientes();
+        return ResponseEntity.ok(clientes);
+    }
+}
 ```
 
