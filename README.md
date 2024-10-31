@@ -16,7 +16,7 @@ O sistema fornece as seguintes funcionalidades:
 
 Para tornar o sistema mais modular, flexível e fácil de manter, foram identificados cinco pontos de melhoria utilizando três padrões de projeto diferentes. Abaixo está uma visão geral dessas melhorias:
 
-### 1. Criação de Assinaturas com o Padrão Factory
+### 1. Criação de Assinaturas com o `Padrão Factory`
 No código atual, o método `cadastrarAssinatura` em `AssinaturaService` usa uma estrutura condicional `switch` para instanciar diferentes tipos de assinaturas. Isso faz com que o código seja menos flexível e propenso a erros se novos tipos de assinatura forem adicionados.
 
 **Antes (Código Atual)**
@@ -83,4 +83,145 @@ public class AssinaturaPremiumFactory implements AssinaturaFactory {
 }
 ```
 
+### 2. Aplicação de Descontos com o `Padrão Decorator`
+
+Atualmente, o cálculo de desconto está diretamente no `AluguelService`. Se novos tipos de desconto forem adicionados, o código poderá se tornar difícil de manter.
+
+**Antes (Código Atual)**
+```java
+public Aluguel alugarJogo(Long clienteId, Long jogoId) {
+    Cliente cliente = clienteRepository.findById(clienteId).orElseThrow(() -> new RuntimeException("Cliente não encontrado"));
+    Jogo jogo = jogoRepository.findById(jogoId).orElseThrow(() -> new RuntimeException("Jogo não encontrado"));
+
+    double valorAluguel = jogo.getPrecoComDesconto();
+    if (cliente.getAssinatura() != null) {
+        valorAluguel -= (valorAluguel * cliente.getAssinatura().getDesconto() / 100);
+    }
+
+    ...
+}
+```
+
+**Depois (Usando o Padrão Factory)**
+
+Com o `Decorator`, a aplicação de desconto é feita através da classe `AluguelComDesconto`, encapsulando o cálculo em uma estrutura que permite aplicar descontos de forma modular.
+
+```java
+public interface AluguelDesconto {
+    double calcularValorComDesconto(double valorBase);
+}
+
+public class AluguelDescontoBase implements AluguelDesconto {
+    @Override
+    public double calcularValorComDesconto(double valorBase) {
+        return valorBase;
+    }
+}
+
+public class AluguelComDesconto implements AluguelDesconto {
+    private final AluguelDesconto aluguelDesconto;
+    private final double percentualDesconto;
+
+    public AluguelComDesconto(AluguelDesconto aluguelDesconto, double percentualDesconto) {
+        this.aluguelDesconto = aluguelDesconto;
+        this.percentualDesconto = percentualDesconto;
+    }
+
+    @Override
+    public double calcularValorComDesconto(double valorBase) {
+        double valorComDesconto = aluguelDesconto.calcularValorComDesconto(valorBase);
+        return valorComDesconto - (valorComDesconto * percentualDesconto / 100);
+    }
+}
+```
+
+### 3. Cálculo de Multas com o `Padrão Strategy`
+
+**Antes (Código Atual)**
+
+```java
+public double processarDevolucao(Long clienteId, Long jogoId, LocalDate dataDevolucao) {
+    Cliente cliente = clienteRepository.findById(clienteId).orElseThrow(() -> new RuntimeException("Cliente não encontrado"));
+    Jogo jogo = jogoRepository.findById(jogoId).orElseThrow(() -> new RuntimeException("Jogo não encontrado"));
+
+    Aluguel aluguel = aluguelRepository.findByClienteAndJogoAndDataDevolucaoIsNull(cliente, jogo)
+            .orElseThrow(() -> new RuntimeException("Aluguel não encontrado ou já devolvido"));
+
+    long diasAtraso = ChronoUnit.DAYS.between(aluguel.getDataPrevista(), dataDevolucao);
+    double valorMulta = 0;
+    if (diasAtraso > 0 && (cliente.getAssinatura() == null || !cliente.getAssinatura().isEliminaMulta())) {
+        valorMulta = diasAtraso * 5.0;
+    }
+
+    ...
+}
+```
+
+**Depois (Usando o Padrão Strategy)**
+
+Com o `Strategy Pattern`, encapsulamos o cálculo de multa em estratégias, facilitando a adição de novos tipos de cálculo.
+
+```java
+public interface MultaStrategy {
+    double calcularMulta(long diasAtraso);
+}
+
+public class MultaPadraoStrategy implements MultaStrategy {
+    @Override
+    public double calcularMulta(long diasAtraso) {
+        return diasAtraso * 5.0;
+    }
+}
+
+public class MultaPremiumStrategy implements MultaStrategy {
+    @Override
+    public double calcularMulta(long diasAtraso) {
+        return 0; // Sem multa para clientes Premium
+    }
+}
+```
+
+No `AluguelService`:
+
+```java
+public double processarDevolucao(Long clienteId, Long jogoId, LocalDate dataDevolucao) {
+    Cliente cliente = clienteRepository.findById(clienteId).orElseThrow(() -> new RuntimeException("Cliente não encontrado"));
+    Jogo jogo = jogoRepository.findById(jogoId).orElseThrow(() -> new RuntimeException("Jogo não encontrado"));
+
+    Aluguel aluguel = aluguelRepository.findByClienteAndJogoAndDataDevolucaoIsNull(cliente, jogo)
+            .orElseThrow(() -> new RuntimeException("Aluguel não encontrado ou já devolvido"));
+
+    MultaStrategy multaStrategy = cliente.getAssinatura() != null && cliente.getAssinatura().isEliminaMulta()
+            ? new MultaPremiumStrategy() : new MultaPadraoStrategy();
+
+    long diasAtraso = ChronoUnit.DAYS.between(aluguel.getDataPrevista(), dataDevolucao);
+    double valorMulta = multaStrategy.calcularMulta(diasAtraso);
+
+    ...
+}
+```
+
+### 4. Uso de Interfaces para Repositórios e Serviços
+
+**Antes (Código Atual)**
+
+```java
+```
+
+**Depois**
+
+```java
+```
+
+### 5. Separação das Camadas de Responsabilidade
+
+**Antes (Código Atual)**
+
+```java
+```
+
+**Depois**
+
+```java
+```
 
