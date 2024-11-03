@@ -97,6 +97,8 @@ public Aluguel alugarJogo(Long clienteId, Long jogoId) {
     Cliente cliente = clienteRepository.findById(clienteId).orElseThrow(() -> new RuntimeException("Cliente não encontrado"));
     Jogo jogo = jogoRepository.findById(jogoId).orElseThrow(() -> new RuntimeException("Jogo não encontrado"));
 
+    ...
+
     double valorAluguel = jogo.getPrecoComDesconto();
     if (cliente.getAssinatura() != null) {
         valorAluguel -= (valorAluguel * cliente.getAssinatura().getDesconto() / 100);
@@ -231,14 +233,11 @@ Usar interfaces para definir os métodos dos serviços e repositórios torna o c
 **Antes (Código Atual)**
 
 ```java
-@Service
-public class ClienteService {
-    @Autowired
-    private ClienteRepository clienteRepository;
-
-    public Cliente buscarClientePorId(Long id) {
-        return clienteRepository.findById(id).orElseThrow(() -> new RuntimeException("Cliente não encontrado"));
-    }
+@GetMapping("/{id}")
+public ResponseEntity<Cliente> buscarClientePorId(@PathVariable Long id) {
+    Cliente cliente = clienteRepository.findById(id)
+            .orElseThrow(() -> new RuntimeException("Cliente não encontrado"));
+    return ResponseEntity.ok(cliente);
 }
 ```
 
