@@ -388,5 +388,4 @@ public class AluguelService {
 
 ## Conclusão
 
-Com a aplicação de padrões de projeto como `Factory`, `Decorator` e `Strategy`, além da separação de responsabilidades, o sistema de locadora de jogos se tornou mais modular, flexível e fácil de manter. Essas melhorias permitem que o código seja adaptável e preparado para futuras mudanças, facilitando a compreensão e testes. Ao separar responsabilidades e organizar a lógica de forma independente, o projeto se torna mais robusto e alinhado às demandas do mercado. 
-
+Com a aplicação de padrões de projeto como `Factory`, `Decorator` e `Strategy`, além da separação de responsabilidades, o sistema de locadora de jogos se tornou mais modular, flexível e fácil de manter. Essas melhorias preparam o código para adaptações e futuras mudanças, tornando-o mais robusto e alinhado às boas práticas de desenvolvimento.
